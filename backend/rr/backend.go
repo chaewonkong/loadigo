@@ -1,4 +1,4 @@
-package backend
+package rr
 
 import (
 	"net/http"
@@ -12,13 +12,13 @@ type backend struct {
 
 // New creates a new backend server that acts as a reverse proxy to the specified server URL.
 func New(serverUrl string) (http.Handler, error) {
-	url, err := url.Parse(serverUrl)
+	u, err := url.Parse(serverUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	return &backend{
-		reverseProxy: httputil.NewSingleHostReverseProxy(url),
+		reverseProxy: httputil.NewSingleHostReverseProxy(u),
 	}, nil
 }
 

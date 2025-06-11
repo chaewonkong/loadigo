@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/chaewonkong/loadigo/backend"
+	"github.com/chaewonkong/loadigo/backend/rr"
 	"github.com/chaewonkong/loadigo/lb"
 )
 
@@ -17,7 +17,7 @@ var backends = []string{
 func main() {
 	balancer := lb.New()
 	for _, u := range backends {
-		b, err := backend.New(u)
+		b, err := rr.New(u)
 		if err != nil {
 			log.Fatalf("Failed to create backend for %s: %v", u, err)
 		}
