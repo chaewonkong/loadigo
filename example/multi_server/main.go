@@ -24,7 +24,7 @@ func startEchoServer(port int) {
 	log.Fatal(server.ListenAndServe())
 }
 func main() {
-	ports := []int{8081, 8082, 8083}
+	ports := []int{8081, 8082}
 
 	for _, port := range ports {
 		go startEchoServer(port)
