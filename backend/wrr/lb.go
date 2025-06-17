@@ -1,11 +1,11 @@
 package wrr
 
 import (
+	"container/heap"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/chaewonkong/loadigo/backend"
@@ -19,17 +19,20 @@ type LoadBalancer interface {
 }
 
 type loadBalancer struct {
-	servers []backend.Backend
+	servers []*Backend
 	status  map[string]struct{}
 	current uint64
 	ticker  *time.Ticker
 	mu      sync.RWMutex
+
+	// curDeadline is used to track the current deadline for server checks.
+	curDeadline float64
 }
 
 // NewLoadBalancer creates a new LoadBalancer instance.
 func NewLoadBalancer(ticker *time.Ticker) LoadBalancer {
 	return &loadBalancer{
-		servers: make([]backend.Backend, 0),
+		servers: make([]*Backend, 0),
 		current: 0,
 		status:  make(map[string]struct{}),
 		ticker:  ticker,
@@ -37,23 +40,61 @@ func NewLoadBalancer(ticker *time.Ticker) LoadBalancer {
 	}
 }
 
+// heap.Interface implementation for loadBalancer
+func (lb *loadBalancer) Len() int {
+	return len(lb.servers)
+}
+
+func (lb *loadBalancer) Less(i, j int) bool {
+	return lb.servers[i].deadline < lb.servers[j].deadline
+}
+
+func (lb *loadBalancer) Swap(i, j int) {
+	lb.servers[i], lb.servers[j] = lb.servers[j], lb.servers[i]
+}
+
+func (lb *loadBalancer) Push(x interface{}) {
+	b, ok := x.(*Backend)
+	if !ok {
+		return
+	}
+
+	lb.servers = append(lb.servers, b)
+}
+
+func (lb *loadBalancer) Pop() interface{} {
+	if len(lb.servers) == 0 {
+		return nil
+	}
+
+	b := lb.servers[len(lb.servers)-1]
+	lb.servers = lb.servers[:len(lb.servers)-1]
+
+	return b
+}
+
 func (lb *loadBalancer) nextServer() http.Handler {
 	if len(lb.servers) == 0 {
 		return nil
 	}
 
-	for i := 0; i < len(lb.servers); i++ {
-		idx := atomic.AddUint64(&lb.current, 1)
-		svr := lb.servers[int(idx)%len(lb.servers)]
-		lb.mu.RLock()
-		_, ok := lb.status[svr.Name()]
-		lb.mu.RUnlock()
-		if ok {
-			return svr
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	var b *Backend
+	for {
+		b = heap.Pop(lb).(*Backend)
+
+		lb.curDeadline = b.deadline
+		b.deadline += 1 / (b.weight)
+		heap.Push(lb, b)
+
+		if _, ok := lb.status[b.Name()]; ok {
+			break
 		}
 	}
 
-	return nil
+	return b
 }
 
 func (lb *loadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -71,11 +112,21 @@ func (lb *loadBalancer) AddServer(name string, svr backend.Backend) error {
 		return fmt.Errorf("server cannot be nil")
 	}
 
+	b, ok := svr.(*Backend)
+	if !ok {
+		return fmt.Errorf("server must be of type *Backend")
+	}
+
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
+
+	// set initial deadline for the server
+	b.deadline = lb.curDeadline + 1/(b.weight)
+	heap.Push(lb, b)
+
 	lb.status[name] = struct{}{}
 
-	lb.servers = append(lb.servers, svr)
+	lb.servers = append(lb.servers, b)
 	return nil
 }
 
