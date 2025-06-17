@@ -5,21 +5,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chaewonkong/loadigo/backend/rr"
-	"github.com/chaewonkong/loadigo/lb"
+	"github.com/chaewonkong/loadigo/backend/p2c"
 )
 
 var backends = []string{
 	"http://localhost:8081",
 	"http://localhost:8082",
 	"http://localhost:8083",
+	"http://localhost:8084",
+	"http://localhost:8085",
 }
 
 func main() {
 	ticker := time.NewTicker(5 * time.Second)
-	balancer := lb.New(ticker)
+	balancer := p2c.NewLoadBalancer(ticker)
 	for _, u := range backends {
-		b, err := rr.New(u)
+		b, err := p2c.NewBackend(u)
 		if err != nil {
 			log.Fatalf("Failed to create backend for %s: %v", u, err)
 		}

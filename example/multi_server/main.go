@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 )
 
 func startEchoServer(port int) {
@@ -12,6 +13,7 @@ func startEchoServer(port int) {
 	// 독립적인 ServeMux 생성
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second) // 2초 지연
 		fmt.Fprintf(w, "Hello from port %d\n", port)
 	})
 
@@ -24,7 +26,7 @@ func startEchoServer(port int) {
 	log.Fatal(server.ListenAndServe())
 }
 func main() {
-	ports := []int{8081, 8082}
+	ports := []int{8081, 8082, 8083, 8084, 8085}
 
 	for _, port := range ports {
 		go startEchoServer(port)

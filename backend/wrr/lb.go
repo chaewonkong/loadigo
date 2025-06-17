@@ -1,4 +1,4 @@
-package lb
+package wrr
 
 import (
 	"fmt"
@@ -8,28 +8,28 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/chaewonkong/loadigo/backend/rr"
+	"github.com/chaewonkong/loadigo/backend"
 )
 
 // LoadBalancer defines the interface for a load balancer that can distribute requests
 type LoadBalancer interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
-	AddServer(name string, svr rr.Backend) error
+	AddServer(name string, svr backend.Backend) error
 	CheckServerStatus()
 }
 
 type loadBalancer struct {
-	servers []rr.Backend
+	servers []backend.Backend
 	status  map[string]struct{}
 	current uint64
 	ticker  *time.Ticker
 	mu      sync.RWMutex
 }
 
-// New creates a new LoadBalancer instance.
-func New(ticker *time.Ticker) LoadBalancer {
+// NewLoadBalancer creates a new LoadBalancer instance.
+func NewLoadBalancer(ticker *time.Ticker) LoadBalancer {
 	return &loadBalancer{
-		servers: make([]rr.Backend, 0),
+		servers: make([]backend.Backend, 0),
 		current: 0,
 		status:  make(map[string]struct{}),
 		ticker:  ticker,
@@ -66,7 +66,7 @@ func (lb *loadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	svr.ServeHTTP(w, r)
 }
 
-func (lb *loadBalancer) AddServer(name string, svr rr.Backend) error {
+func (lb *loadBalancer) AddServer(name string, svr backend.Backend) error {
 	if svr == nil {
 		return fmt.Errorf("server cannot be nil")
 	}
